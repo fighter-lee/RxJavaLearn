@@ -22,37 +22,164 @@ import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.BiFunction;
 import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
 import io.reactivex.functions.Predicate;
 
 public class MainActivity extends AppCompatActivity implements ObservableOnSubscribe<Integer> {
     private static final String TAG = "MainActivity";
     private ObservableEmitter<Integer> e;
     private int defer_i;
+    private Disposable dispose;
+    private int retryCount;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         //创建符
-        //        test();
+        //                test();
         //        deferTest();
-        //        empty_error_throw();
+        //                empty_error_throw();
         //        from();
-        future();
+        //        future();
+        //        block();
         //过滤符
         //        contain_test1();
         //        distinct_test();
         //        filter_test();
         //        debounce_test();
+        retryWhen();
+//        zipWith();
+    }
+
+    public void block() {
+        Observable.just(1, 2, 3, 4)
+                .blockingForEach(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + integer);
+                    }
+                });
+        Log.d(TAG, "block: 完成了 1");
+        Observable<Integer> just = Observable.just(1, 2, 3);
+        Integer integer = just.take(1).blockingFirst();
+        Log.d(TAG, "block: " + integer);
+        Log.d(TAG, "block: 完成了 2");
+        just.elementAt(1).subscribe(new Consumer<Integer>() {
+            @Override
+            public void accept(Integer integer) throws Exception {
+                Log.d(TAG, "block: 接收：" + integer);
+            }
+        });
+        Log.d(TAG, "block: 完成了 3");
+
+    }
+
+    public void zipWith() {
+        Observable.just(100,200,300,400)
+                .zipWith(Observable.range(1, 3), new BiFunction<Integer, Integer, Integer>() {
+                    @Override
+                    public Integer apply(Integer e, Integer integer) throws Exception {
+                        Log.d(TAG, "apply: "+integer);
+                        return integer+e;
+                    }
+                }).subscribe(new Consumer<Integer>() {
+            @Override
+            public void accept(Integer integer) throws Exception {
+                Log.d(TAG, "accept: "+integer);
+            }
+        });
+    }
+
+    public void retryWhen() {
+        retryCount = 0;
+        Observable.just(888)
+                .doOnNext(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        if (retryCount == 1) {
+                            throw new Exception("aaaaaaaaaa");
+                        }
+                        if (retryCount == 2) {
+                            throw new Exception("bbbbbbbbbb");
+                        }
+//                        if (retryCount == 3) {
+//                            throw new Exception("cccccccccc");
+//                        }
+                    }
+                })
+                .retryWhen(new Function<Observable<Throwable>, ObservableSource<?>>() {
+                    @Override
+                    public ObservableSource<?> apply(Observable<Throwable> throwableObservable) throws Exception {
+//                        return throwableObservable.flatMap(new Function<Throwable, ObservableSource<?>>() {
+//                            @Override
+//                            public ObservableSource<?> apply(Throwable throwable) throws Exception {
+//                                ++retryCount;
+//                                Log.d(TAG, "apply: " + retryCount);
+//                                Log.e(TAG, "apply: ", throwable);
+//                                if (retryCount < 3) {
+//                                    return Observable.timer(1000, TimeUnit.MILLISECONDS);
+//                                }
+//                                return Observable.error(throwable);
+//                            }
+//                        });
+                        //实现方式二
+                        retryCount++;
+                        return throwableObservable.zipWith(Observable.range(1, 3), new BiFunction<Throwable, Integer, Integer>() {
+                            @Override
+                            public Integer apply(Throwable throwable, Integer integer) throws Exception {
+                                Log.d(TAG, "apply: exception:"+throwable.getMessage());
+                                Log.d(TAG, "apply: "+integer);
+                                //每次时间增加
+                                return integer * 1000;
+                            }
+                        }).flatMap(new Function<Integer, ObservableSource<?>>() {
+                            @Override
+                            public ObservableSource<?> apply(Integer integer) throws Exception {
+                                Log.d(TAG, "apply: "+integer);
+                                return Observable.timer(integer,TimeUnit.MILLISECONDS);
+                            }
+                        });
+                    }
+                }).subscribe(new Consumer<Integer>() {
+            @Override
+            public void accept(Integer integer) throws Exception {
+                Log.d(TAG, "accept: " + integer);
+            }
+        }, new Consumer<Throwable>() {
+            @Override
+            public void accept(Throwable throwable) throws Exception {
+                Log.e(TAG, "error", throwable);
+            }
+        });
+
+
     }
 
     public void test() {
         Observable.create(this)
-                .subscribe(new Consumer<Integer>() {
+                .subscribe(new Observer<Integer>() {
                     @Override
-                    public void accept(Integer integer) throws Exception {
-                        Log.d(TAG, "accept: " + integer);
+                    public void onSubscribe(Disposable d) {
+                        dispose = d;
+                    }
+
+                    @Override
+                    public void onNext(Integer integer) {
+                        Log.d(TAG, "onNext: " + integer);
+                        //                        dispose.dispose();
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
                     }
                 });
     }
@@ -145,7 +272,7 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
                 return 23;
             }
         });
-//        futureTask.cancel(true);
+        //        futureTask.cancel(true);
         if (futureTask.isCancelled()) {
             Log.d(TAG, "future: iscancel");
         } else {
@@ -157,7 +284,7 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
                 e1.printStackTrace();
             }
         }
-        Log.d(TAG, "future: 完成"+futureTask.isDone());
+        Log.d(TAG, "future: 完成" + futureTask.isDone());
     }
 
     public void future() {
@@ -179,7 +306,7 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
 
                     @Override
                     public void onNext(Integer integer) {
-                        Log.d(TAG, "onNext: "+integer);
+                        Log.d(TAG, "onNext: " + integer);
                     }
 
                     @Override
@@ -358,5 +485,6 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
 
     public void send(View view) {
         e.onNext(2);
+        Log.d(TAG, "send: " + e.isDisposed());
     }
 }
