@@ -7,6 +7,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 
+import org.reactivestreams.Subscription;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -22,15 +24,14 @@ import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.BiFunction;
 import io.reactivex.functions.Consumer;
-import io.reactivex.functions.Function;
 import io.reactivex.functions.Predicate;
 
 public class MainActivity extends AppCompatActivity implements ObservableOnSubscribe<Integer> {
     private static final String TAG = "MainActivity";
     private ObservableEmitter<Integer> e;
     private int defer_i;
+    private Subscription backrequest;
     private Disposable dispose;
     private int retryCount;
 
@@ -39,9 +40,9 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         //创建符
-        //                test();
+        //        test();
         //        deferTest();
-        //                empty_error_throw();
+        //        empty_error_throw();
         //        from();
         //        future();
         //        block();
@@ -50,6 +51,55 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
         //        distinct_test();
         //        filter_test();
         //        debounce_test();
+        //        sample();
+        //转换符
+        //        buffer();
+        retryWhen();
+        //        zipWith();
+
+        //        backpress();
+    }
+
+    private void backpress() {
+        Flowable.create(new FlowableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(FlowableEmitter<Integer> e) throws Exception {
+                for (int i = 0; i < 160; i++) {
+                    while (e.requested() == 0) {
+                        if (e.isCancelled()) {
+                            break;
+                        }
+                    }
+                    Log.d(TAG, "subscribe: 准备发：" + i);
+                    e.onNext(i);
+                }
+            }
+        }, BackpressureStrategy.BUFFER)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new FlowableSubscriber<Integer>() {
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        backrequest = s;
+                        s.request(50);
+                    }
+
+                    @Override
+                    public void onNext(Integer integer) {
+                        Log.d(TAG, "onNext: 收到了：=========================");
+                        Log.d(TAG, "onNext: " + integer);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        Log.e(TAG, "onError: ", t);
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
         retryWhen();
 //        zipWith();
     }
@@ -321,6 +371,68 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
                 });
     }
 
+    public void sample() {
+        Observable.interval(2000, 2000, TimeUnit.MILLISECONDS).
+                sample(4000, TimeUnit.MILLISECONDS)
+                .subscribe(new Observer<Long>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+
+                    }
+
+                    @Override
+                    public void onNext(Long aLong) {
+                        Log.d(TAG, "onNext: " + aLong);
+                    }
+
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+    }
+
+    public void buffer() {
+        Observable.create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(ObservableEmitter<Integer> e) throws Exception {
+                for (int i = 0; i < 100; i++) {
+                    e.onNext(i);
+                }
+            }
+        }).buffer(50)
+                .subscribe(new Observer<List<Integer>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+
+                    }
+
+                    @Override
+                    public void onNext(List<Integer> integers) {
+                        Log.d(TAG, "onNext: ==============================");
+                        for (Integer integer : integers) {
+                            Log.d(TAG, "onNext: " + integer);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+    }
+
     public void from() {
         List<Integer> integers = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -486,5 +598,11 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
     public void send(View view) {
         e.onNext(2);
         Log.d(TAG, "send: " + e.isDisposed());
+    }
+
+    public void back_press(View view) {
+        if (backrequest != null) {
+            backrequest.request(50);
+        }
     }
 }
