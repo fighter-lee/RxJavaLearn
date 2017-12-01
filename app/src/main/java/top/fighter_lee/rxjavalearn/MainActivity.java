@@ -9,6 +9,7 @@ import android.view.View;
 
 import org.reactivestreams.Subscription;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -53,7 +54,7 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
         //        deferTest();
         //        empty_error_throw();
         //        from();
-        //        future();
+//        future();
         //        block();
         //过滤符
         //        contain_test1();
@@ -63,10 +64,213 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
         //        sample();
         //转换符
         //        buffer();
-        retryWhen();
-        //        zipWith();
+        //        retryWhen();
+        //                zipWith();
 
         //        backpress();
+        //        just();
+        //        debounce();
+        //        first();
+        //        asy();
+
+        //        concat();
+                timeout();
+
+    }
+
+    /**
+     * 可实现请求超时机制
+     */
+    private void timeout() {
+        Observable.just(1)
+                .delay(6, TimeUnit.SECONDS)
+                .timeout(5, TimeUnit.SECONDS)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + integer);
+                    }
+                }, new Consumer<Throwable>() {
+                    @Override
+                    public void accept(Throwable throwable) throws Exception {
+                        Log.d(TAG, "accept: "+Thread.currentThread());
+                        Log.e(TAG, "accept: ", throwable);
+                    }
+                });
+    }
+
+
+    private void concat() {
+        Observable<Integer> integerOb = Observable.just(1, 3);
+        Observable<String> otOb = Observable.just("一", "三")
+                .delay(3, TimeUnit.SECONDS);
+        Observable.concat(integerOb, otOb)
+                .flatMap(new Function<Serializable, ObservableSource<String>>() {
+                    @Override
+                    public ObservableSource<String> apply(Serializable serializable) throws Exception {
+                        return Observable.just(serializable.toString());
+                    }
+                }).subscribe(new Consumer<String>() {
+            @Override
+            public void accept(String s) throws Exception {
+                Log.d(TAG, "accept: " + s);
+            }
+        });
+    }
+
+    //todo
+    private void asy() {
+        Observable.create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(final ObservableEmitter<Integer> e) throws Exception {
+                Asy.start(new Asy.Callback() {
+                    @Override
+                    public void ok() {
+                        e.onNext(1);
+                    }
+                });
+            }
+        })
+
+                /**
+                 * 接收异步
+                 */
+                //                .subscribe(new Consumer<Integer>() {
+                //                    @Override
+                //                    public void accept(Integer integer) throws Exception {
+                //                        Log.d(TAG, "accept: "+integer);
+                //                    }
+                //                });
+                /**
+                 * 异步改同步
+                 */
+                .blockingSubscribe(new Observer<Integer>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+
+                    }
+
+                    @Override
+                    public void onNext(Integer integer) {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+        Log.d(TAG, "asy: ");
+
+
+    }
+
+    private void first() {
+
+        Observable<Integer> integerObservable = Observable.create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(ObservableEmitter<Integer> e) throws Exception {
+                e.onNext(1);
+                SystemClock.sleep(500);
+                e.onNext(2);
+                SystemClock.sleep(400);
+                e.onNext(3);
+                SystemClock.sleep(400);
+                e.onNext(4);
+
+            }
+        }).subscribeOn(Schedulers.io());
+
+        /**
+         * 只会收到第一个
+         */
+        //        integerObservable.first(1)
+        //                .toObservable()
+        //                .subscribe(new Consumer<Integer>() {
+        //                    @Override
+        //                    public void accept(Integer integer) throws Exception {
+        //                        Log.d(TAG, "accept: " + integer);
+        //                    }
+        //                });
+
+        /**
+         * blockingFirst
+         * 阻塞获取第一个收到的数据
+         */
+        //        Integer integer = integerObservable.blockingFirst();
+        /**
+         * throttleFirst
+         * 返回在指定持续时间的连续时间窗口中仅发出由源ObservableSource发出的第一个项目的Observable。
+         */
+        //        integerObservable.throttleFirst(1000, TimeUnit.MILLISECONDS).subscribe(new Consumer<Integer>() {
+        //            @Override
+        //            public void accept(Integer integer) throws Exception {
+        //                Log.d(TAG, "first: "+integer);
+        //            }
+        //        });
+
+        /**
+         * TODO 不明白
+         */
+        //        integerObservable.throttleFirst(200, TimeUnit.MILLISECONDS, new TestScheduler())
+        //                .subscribe(new Consumer<Integer>() {
+        //                    @Override
+        //                    public void accept(Integer integer) throws Exception {
+        //                        Log.d(TAG, "accept: "+integer);
+        //                    }
+        //                });
+
+        Log.d(TAG, "first: complete");
+    }
+
+    private void debounce() {
+        Observable.create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(ObservableEmitter<Integer> e) throws Exception {
+                e.onNext(1);
+                SystemClock.sleep(500);
+                e.onNext(2);
+                SystemClock.sleep(1100);
+                e.onNext(3);
+                SystemClock.sleep(1100);
+                e.onNext(4);
+            }
+        })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .debounce(1000, TimeUnit.MILLISECONDS)
+                .subscribe(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + integer);
+                    }
+                });
+    }
+
+    private void just() {
+        Observable.just(1)
+                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.io())
+                .doOnNext(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + Thread.currentThread().getName());
+                    }
+                })
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + Thread.currentThread().getName());
+                    }
+                });
     }
 
     private void backpress() {
@@ -109,8 +313,6 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
 
                     }
                 });
-        retryWhen();
-//        zipWith();
     }
 
     public void block() {
@@ -137,17 +339,36 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
     }
 
     public void zipWith() {
-        Observable.just(100,200,300,400)
-                .zipWith(Observable.range(1, 3), new BiFunction<Integer, Integer, Integer>() {
-                    @Override
-                    public Integer apply(Integer e, Integer integer) throws Exception {
-                        Log.d(TAG, "apply: "+integer);
-                        return integer+e;
-                    }
-                }).subscribe(new Consumer<Integer>() {
+        //        Observable.just(100, 200, 300, 400)
+        //                .zipWith(Observable.range(1, 3), new BiFunction<Integer, Integer, Integer>() {
+        //                    @Override
+        //                    public Integer apply(Integer e, Integer integer) throws Exception {
+        //                        Log.d(TAG, "apply: " + integer);
+        //                        return integer + e;
+        //                    }
+        //                }).subscribe(new Consumer<Integer>() {
+        //            @Override
+        //            public void accept(Integer integer) throws Exception {
+        //                Log.d(TAG, "accept: " + integer);
+        //            }
+        //        });
+
+
+        /**
+         * 可实现页面弹框显示至少5秒钟的效果
+         */
+        Observable<Integer> delay1 = Observable.just(1).delay(2, TimeUnit.SECONDS);
+        Observable<Integer> delay2 = Observable.just(100).delay(5, TimeUnit.SECONDS);
+
+        Observable.zip(delay1, delay2, new BiFunction<Integer, Integer, Integer>() {
+            @Override
+            public Integer apply(Integer integer, Integer integer2) throws Exception {
+                return integer;
+            }
+        }).subscribe(new Consumer<Integer>() {
             @Override
             public void accept(Integer integer) throws Exception {
-                Log.d(TAG, "accept: "+integer);
+                Log.d(TAG, "accept: " + integer);
             }
         });
     }
@@ -164,55 +385,62 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
                         if (retryCount == 2) {
                             throw new Exception("bbbbbbbbbb");
                         }
-//                        if (retryCount == 3) {
-//                            throw new Exception("cccccccccc");
-//                        }
+                        //                        if (retryCount == 3) {
+                        //                            throw new Exception("cccccccccc");
+                        //                        }
                     }
                 })
                 .retryWhen(new Function<Observable<Throwable>, ObservableSource<?>>() {
                     @Override
                     public ObservableSource<?> apply(Observable<Throwable> throwableObservable) throws Exception {
-//                        return throwableObservable.flatMap(new Function<Throwable, ObservableSource<?>>() {
-//                            @Override
-//                            public ObservableSource<?> apply(Throwable throwable) throws Exception {
-//                                ++retryCount;
-//                                Log.d(TAG, "apply: " + retryCount);
-//                                Log.e(TAG, "apply: ", throwable);
-//                                if (retryCount < 3) {
-//                                    return Observable.timer(1000, TimeUnit.MILLISECONDS);
-//                                }
-//                                return Observable.error(throwable);
-//                            }
-//                        });
-                        //实现方式二
                         retryCount++;
-                        return throwableObservable.zipWith(Observable.range(1, 3), new BiFunction<Throwable, Integer, Integer>() {
+                        return throwableObservable.flatMap(new Function<Throwable, ObservableSource<?>>() {
                             @Override
-                            public Integer apply(Throwable throwable, Integer integer) throws Exception {
-                                Log.d(TAG, "apply: exception:"+throwable.getMessage());
-                                Log.d(TAG, "apply: "+integer);
-                                //每次时间增加
-                                return integer * 1000;
-                            }
-                        }).flatMap(new Function<Integer, ObservableSource<?>>() {
-                            @Override
-                            public ObservableSource<?> apply(Integer integer) throws Exception {
-                                Log.d(TAG, "apply: "+integer);
-                                return Observable.timer(integer,TimeUnit.MILLISECONDS);
+                            public ObservableSource<?> apply(Throwable throwable) throws Exception {
+                                ++retryCount;
+                                Log.d(TAG, "apply: " + retryCount);
+                                Log.e(TAG, "apply: ", throwable);
+                                if (retryCount < 3) {
+                                    return Observable.timer(1000, TimeUnit.MILLISECONDS);
+                                }
+                                return Observable.error(throwable);
                             }
                         });
+                        //实现方式二
+                        //                        return throwableObservable.zipWith(Observable.range(1, 3), new BiFunction<Throwable, Integer, Integer>() {
+                        //                            @Override
+                        //                            public Integer apply(Throwable throwable, Integer integer) throws Exception {
+                        //                                Log.d(TAG, "apply: exception:"+throwable.getMessage());
+                        //                                Log.d(TAG, "apply: "+integer);
+                        //                                //每次时间增加
+                        //                                return integer * 1000;
+                        //                            }
+                        //                        }).flatMap(new Function<Integer, ObservableSource<?>>() {
+                        //                            @Override
+                        //                            public ObservableSource<?> apply(Integer integer) throws Exception {
+                        //                                Log.d(TAG, "apply: "+integer);
+                        //                                return Observable.timer(integer,TimeUnit.MILLISECONDS);
+                        //                            }
+                        //                        });
                     }
-                }).subscribe(new Consumer<Integer>() {
-            @Override
-            public void accept(Integer integer) throws Exception {
-                Log.d(TAG, "accept: " + integer);
-            }
-        }, new Consumer<Throwable>() {
-            @Override
-            public void accept(Throwable throwable) throws Exception {
-                Log.e(TAG, "error", throwable);
-            }
-        });
+                })
+                //                .blockingForEach(new Consumer<Integer>() {
+                //            @Override
+                //            public void accept(Integer integer) throws Exception {
+                //                Log.d(TAG, "accept: "+integer);
+                //            }
+                //        });
+                .subscribe(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + integer);
+                    }
+                }, new Consumer<Throwable>() {
+                    @Override
+                    public void accept(Throwable throwable) throws Exception {
+                        Log.e(TAG, "error", throwable);
+                    }
+                });
 
 
     }
@@ -347,37 +575,69 @@ public class MainActivity extends AppCompatActivity implements ObservableOnSubsc
     }
 
     public void future() {
-        FutureTask<Integer> futureTask = FutureTaskPool.getInstance().executeTask(new Callable<Integer>() {
+
+        //TODO 需要优化此处
+        Observable.fromCallable(new Callable<Integer>() {
             @Override
             public Integer call() throws Exception {
-                SystemClock.sleep(2000);
-                Log.d(TAG, "1 Runnable in FutureTask ..." + " Thread id：" + Thread.currentThread().getId());
-                return 23;
+                final Object lock = new Object();
+                final int[] i = new int[1];
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        SystemClock.sleep(2000);
+                        i[0] = 100;
+                        synchronized (lock) {
+                            lock.notify();
+                        }
+                    }
+                }).start();
+                synchronized (lock) {
+                    lock.wait();
+                }
+                Log.d(TAG, "call: 解锁了：" + i[0]);
+                return i[0];
             }
-        });
-
-        Observable.fromFuture(futureTask)
-                .subscribe(new Observer<Integer>() {
+        }).subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<Integer>() {
                     @Override
-                    public void onSubscribe(Disposable d) {
-
-                    }
-
-                    @Override
-                    public void onNext(Integer integer) {
-                        Log.d(TAG, "onNext: " + integer);
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        Log.d(TAG, "onComplete: ");
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + integer);
                     }
                 });
+
+        //        FutureTask<Integer> futureTask = FutureTaskPool.getInstance().executeTask(new Callable<Integer>() {
+        //            @Override
+        //            public Integer call() throws Exception {
+        //                SystemClock.sleep(2000);
+        //                Log.d(TAG, "1 Runnable in FutureTask ..." + " Thread id：" + Thread.currentThread().getId());
+        //                return 23;
+        //            }
+        //        });
+        //
+        //        Observable.fromFuture(futureTask)
+        //                .subscribe(new Observer<Integer>() {
+        //                    @Override
+        //                    public void onSubscribe(Disposable d) {
+        //
+        //                    }
+        //
+        //                    @Override
+        //                    public void onNext(Integer integer) {
+        //                        Log.d(TAG, "onNext: " + integer);
+        //                    }
+        //
+        //                    @Override
+        //                    public void onError(Throwable e) {
+        //
+        //                    }
+        //
+        //                    @Override
+        //                    public void onComplete() {
+        //                        Log.d(TAG, "onComplete: ");
+        //                    }
+        //                });
     }
 
     public void sample() {
